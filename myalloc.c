@@ -141,3 +141,46 @@ void my_free(void *ptr) {
         }
     }
 }
+
+void *my_calloc(size_t nmemb, size_t size) {
+    if (nmemb == 0 || size == 0) {
+        return NULL;
+    }
+    if (nmemb > SIZE_MAX / size) {
+        return NULL;
+    }
+
+    size_t total = nmemb * size;
+    void *ptr = my_malloc(total);
+    if (ptr != NULL) {
+        memset(ptr, 0, total);
+    }
+    return ptr;
+}
+
+void *my_realloc(void *ptr, size_t size) {
+    if (ptr == NULL) {
+        return my_malloc(size);
+    }
+    if (size == 0) {
+        my_free(ptr);
+        return NULL;
+    }
+
+    struct block *b = (struct block *)ptr - 1;
+    size_t aligned = round_up(size);
+
+    if (b->size >= aligned) {
+        split_block(b, aligned);
+        return ptr;
+    }
+
+    void *new_ptr = my_malloc(size);
+    if (new_ptr == NULL) {
+        return NULL;
+    }
+
+    memcpy(new_ptr, ptr, b->size);
+    my_free(ptr);
+    return new_ptr;
+}
