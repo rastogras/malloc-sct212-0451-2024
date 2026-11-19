@@ -106,3 +106,38 @@ void *my_malloc(size_t size) {
 void set_policy(fit_policy_t p) {
     policy = p;
 }
+
+void my_free(void *ptr) {
+    if (ptr == NULL) {
+        return;
+    }
+
+    struct block *b = (struct block *)ptr - 1;
+    b->free = 1;
+
+    /* Merge with next block if free and physically adjacent */
+    if (b->next != NULL && b->next->free &&
+        (char *)(b + 1) + b->size == (char *)b->next) {
+        struct block *nxt = b->next;
+        b->size += sizeof(struct block) + nxt->size;
+        b->next = nxt->next;
+        if (nxt->next != NULL) {
+            nxt->next->prev = b;
+        } else {
+            tail = b;
+        }
+    }
+
+    /* Merge with previous block if free and physically adjacent */
+    if (b->prev != NULL && b->prev->free &&
+        (char *)(b->prev + 1) + b->prev->size == (char *)b) {
+        struct block *prv = b->prev;
+        prv->size += sizeof(struct block) + b->size;
+        prv->next = b->next;
+        if (b->next != NULL) {
+            b->next->prev = prv;
+        } else {
+            tail = prv;
+        }
+    }
+}
