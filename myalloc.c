@@ -57,3 +57,52 @@ static struct block *grow_heap(size_t size) {
 
     return b;
 }
+
+static void split_block(struct block *b, size_t size) {
+    if (b->size >= size + sizeof(struct block) + 16) {
+        struct block *extra = (struct block *)((char *)(b + 1) + size);
+        extra->size = b->size - size - sizeof(struct block);
+        extra->free = 1;
+        extra->prev = b;
+        extra->next = b->next;
+
+        if (b->next != NULL) {
+            b->next->prev = extra;
+        } else {
+            tail = extra;
+        }
+        b->next = extra;
+        b->size = size;
+    }
+}
+
+void *my_malloc(size_t size) {
+    if (size == 0) {
+        return NULL;
+    }
+
+    size = round_up(size);
+    struct block *curr = head;
+
+    while (curr != NULL) {
+        if (curr->free && curr->size >= size) {
+            break;
+        }
+        curr = curr->next;
+    }
+
+    if (curr == NULL) {
+        curr = grow_heap(size);
+        if (curr == NULL) {
+            return NULL;
+        }
+    }
+
+    split_block(curr, size);
+    curr->free = 0;
+    return (void *)(curr + 1);
+}
+
+void set_policy(fit_policy_t p) {
+    policy = p;
+}
