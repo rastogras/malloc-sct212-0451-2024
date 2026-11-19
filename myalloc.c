@@ -82,13 +82,20 @@ void *my_malloc(size_t size) {
     }
 
     size = round_up(size);
-    struct block *curr = head;
+    struct block *curr = NULL;
+    struct block *scan = head;
 
-    while (curr != NULL) {
-        if (curr->free && curr->size >= size) {
-            break;
+    while (scan != NULL) {
+        if (scan->free && scan->size >= size) {
+            if (policy == FIT_FIRST) {
+                curr = scan;
+                break;
+            }
+            if (curr == NULL || scan->size < curr->size) {
+                curr = scan;
+            }
         }
-        curr = curr->next;
+        scan = scan->next;
     }
 
     if (curr == NULL) {
