@@ -1,3 +1,4 @@
 test_myalloc
 extra_tests
 *.o
+bench
