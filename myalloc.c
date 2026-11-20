@@ -133,6 +133,30 @@ void my_free(void *ptr) {
     }
 
     struct block *b = (struct block *)ptr - 1;
+    struct block *check = head;
+    int found = 0;
+    while (check != NULL) {
+        if (check == b) {
+            found = 1;
+            break;
+        }
+        check = check->next;
+    }
+
+    if (!found) {
+        const char *msg = "my_free: invalid pointer\n";
+        ssize_t ignored = write(STDERR_FILENO, msg, 25);
+        (void)ignored;
+        return;
+    }
+
+    if (b->free) {
+        const char *msg = "my_free: double free detected\n";
+        ssize_t ignored = write(STDERR_FILENO, msg, 30);
+        (void)ignored;
+        return;
+    }
+
     b->free = 1;
 
     /* Merge with next block if free and physically adjacent */
@@ -191,6 +215,21 @@ void *my_realloc(void *ptr, size_t size) {
     size_t aligned = round_up(size);
 
     if (b->size >= aligned) {
+        split_block(b, aligned);
+        return ptr;
+    }
+
+    if (b->next != NULL && b->next->free &&
+        (char *)(b + 1) + b->size == (char *)b->next &&
+        b->size + sizeof(struct block) + b->next->size >= aligned) {
+        struct block *nxt = b->next;
+        b->size += sizeof(struct block) + nxt->size;
+        b->next = nxt->next;
+        if (nxt->next != NULL) {
+            nxt->next->prev = b;
+        } else {
+            tail = b;
+        }
         split_block(b, aligned);
         return ptr;
     }
