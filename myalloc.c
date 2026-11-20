@@ -1,4 +1,5 @@
 #define _DEFAULT_SOURCE
+#include <stdio.h>
 #include "myalloc.h"
 #include <stdint.h>
 #include <string.h>
@@ -73,6 +74,18 @@ static void split_block(struct block *b, size_t size) {
         }
         b->next = extra;
         b->size = size;
+
+        if (extra->next != NULL && extra->next->free &&
+            (char *)(extra + 1) + extra->size == (char *)extra->next) {
+            struct block *nxt = extra->next;
+            extra->size += sizeof(struct block) + nxt->size;
+            extra->next = nxt->next;
+            if (nxt->next != NULL) {
+                nxt->next->prev = extra;
+            } else {
+                tail = extra;
+            }
+        }
     }
 }
 
@@ -190,4 +203,74 @@ void *my_realloc(void *ptr, size_t size) {
     memcpy(new_ptr, ptr, b->size);
     my_free(ptr);
     return new_ptr;
+}
+
+void heap_stats(heap_stats_t *out) {
+    if (out == NULL) {
+        return;
+    }
+    out->heap_bytes = total_heap;
+    out->used_bytes = 0;
+    out->free_bytes = 0;
+    out->blocks = 0;
+    out->free_blocks = 0;
+    out->largest_free = 0;
+
+    struct block *curr = head;
+    while (curr != NULL) {
+        out->blocks++;
+        if (curr->free) {
+            out->free_blocks++;
+            out->free_bytes += curr->size;
+            if (curr->size > out->largest_free) {
+                out->largest_free = curr->size;
+            }
+        } else {
+            out->used_bytes += curr->size;
+        }
+        curr = curr->next;
+    }
+}
+
+int heap_check(void) {
+    struct block *curr = head;
+    struct block *prev = NULL;
+
+    while (curr != NULL) {
+        if (curr->prev != prev) {
+            return 0;
+        }
+        if (((uintptr_t)(curr + 1) % 16) != 0) {
+            return 0;
+        }
+        if (curr->free && curr->next != NULL && curr->next->free &&
+            (char *)(curr + 1) + curr->size == (char *)curr->next) {
+            return 0;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+
+    if (prev != tail) {
+        return 0;
+    }
+    return 1;
+}
+
+void heap_dump(void) {
+    char buf[128];
+    struct block *curr = head;
+    int i = 0;
+
+    while (curr != NULL) {
+        int len = snprintf(buf, sizeof(buf), "block %d: addr=%p size=%zu %s\n",
+                           i, (void *)(curr + 1), curr->size,
+                           curr->free ? "FREE" : "USED");
+        if (len > 0) {
+            ssize_t ignored = write(STDOUT_FILENO, buf, (size_t)len);
+            (void)ignored;
+        }
+        curr = curr->next;
+        i++;
+    }
 }
